@@ -1,0 +1,279 @@
+// === Product Entity ===
+package com.example.product_management_api.entity;
+
+import jakarta.persistence.*;
+
+@Entity
+public class Product {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String name;
+    private String description;
+    private double price;
+    private boolean archived;
+
+    // Getters and Setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+
+    public double getPrice() { return price; }
+    public void setPrice(double price) { this.price = price; }
+
+    public boolean isArchived() { return archived; }
+    public void setArchived(boolean archived) { this.archived = archived; }
+}
+
+// === ProductSuggestion Entity ===
+package com.example.product_management_api.entity;
+
+import jakarta.persistence.*;
+
+@Entity
+public class ProductSuggestion {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String name;
+    private String description;
+    private Double expectedPrice;
+
+    // Getters and Setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+
+    public Double getExpectedPrice() { return expectedPrice; }
+    public void setExpectedPrice(Double expectedPrice) { this.expectedPrice = expectedPrice; }
+}
+
+// === ProductRepository ===
+package com.example.product_management_api.repository;
+
+import com.example.product_management_api.entity.Product;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.Optional;
+
+public interface ProductRepository extends JpaRepository<Product, Long> {
+    Optional<Product> findByIdAndArchivedFalse(Long id);
+}
+
+// === ProductSuggestionRepository ===
+package com.example.product_management_api.repository;
+
+import com.example.product_management_api.entity.ProductSuggestion;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface ProductSuggestionRepository extends JpaRepository<ProductSuggestion, Long> {
+}
+
+// === Custom Exception ===
+package com.example.product_management_api.exception;
+
+public class ProductNotFoundException extends RuntimeException {
+    public ProductNotFoundException(String message) {
+        super(message);
+    }
+}
+
+// === ProductService ===
+package com.example.product_management_api.service;
+
+import com.example.product_management_api.entity.Product;
+
+import java.util.List;
+
+public interface ProductService {
+    Product addProduct(Product product);
+    Product updateProduct(Long id, Product product);
+    void deleteProduct(Long id);
+    void archiveProduct(Long id);
+    Product getProductById(Long id);
+    List<Product> getAllProducts();
+}
+
+// === ProductServiceImpl ===
+package com.example.product_management_api.service;
+
+import com.example.product_management_api.entity.Product;
+import com.example.product_management_api.exception.ProductNotFoundException;
+import com.example.product_management_api.repository.ProductRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class ProductServiceImpl implements ProductService {
+
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Override
+    public Product addProduct(Product product) {
+        return productRepository.save(product);
+    }
+
+    @Override
+    public Product updateProduct(Long id, Product updatedProduct) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ProductNotFoundException("Product not found with ID: " + id));
+
+        product.setName(updatedProduct.getName());
+        product.setDescription(updatedProduct.getDescription());
+        product.setPrice(updatedProduct.getPrice());
+        return productRepository.save(product);
+    }
+
+    @Override
+    public void deleteProduct(Long id) {
+        productRepository.deleteById(id);
+    }
+
+    @Override
+    public void archiveProduct(Long id) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ProductNotFoundException("Product not found with ID: " + id));
+        product.setArchived(true);
+        productRepository.save(product);
+    }
+
+    @Override
+    public Product getProductById(Long id) {
+        return productRepository.findByIdAndArchivedFalse(id)
+                .orElseThrow(() -> new ProductNotFoundException("Product not available with ID: " + id));
+    }
+
+    @Override
+    public List<Product> getAllProducts() {
+        return productRepository.findAll();
+    }
+}
+
+// === ProductSuggestionService ===
+package com.example.product_management_api.service;
+
+import com.example.product_management_api.entity.ProductSuggestion;
+import java.util.List;
+
+public interface ProductSuggestionService {
+    ProductSuggestion suggestProduct(ProductSuggestion suggestion);
+    List<ProductSuggestion> getAllSuggestions();
+}
+
+// === ProductSuggestionServiceImpl ===
+package com.example.product_management_api.service;
+
+import com.example.product_management_api.entity.ProductSuggestion;
+import com.example.product_management_api.repository.ProductSuggestionRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class ProductSuggestionServiceImpl implements ProductSuggestionService {
+
+    @Autowired
+    private ProductSuggestionRepository repository;
+
+    @Override
+    public ProductSuggestion suggestProduct(ProductSuggestion suggestion) {
+        return repository.save(suggestion);
+    }
+
+    @Override
+    public List<ProductSuggestion> getAllSuggestions() {
+        return repository.findAll();
+    }
+}
+
+// === ProductController ===
+package com.example.product_management_api.controller;
+
+import com.example.product_management_api.entity.Product;
+import com.example.product_management_api.service.ProductService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/products")
+public class ProductController {
+
+    @Autowired
+    private ProductService productService;
+
+    @PostMapping("/admin")
+    public Product addProduct(@RequestBody Product product) {
+        return productService.addProduct(product);
+    }
+
+    @PutMapping("/admin/{id}")
+    public Product updateProduct(@PathVariable Long id, @RequestBody Product product) {
+        return productService.updateProduct(id, product);
+    }
+
+    @DeleteMapping("/admin/{id}")
+    public void deleteProduct(@PathVariable Long id) {
+        productService.deleteProduct(id);
+    }
+
+    @PatchMapping("/admin/archive/{id}")
+    public void archiveProduct(@PathVariable Long id) {
+        productService.archiveProduct(id);
+    }
+
+    @GetMapping("/{id}")
+    public Product getProductById(@PathVariable Long id) {
+        return productService.getProductById(id);
+    }
+
+    @GetMapping
+    public List<Product> getAllProducts() {
+        return productService.getAllProducts();
+    }
+}
+
+// === ProductSuggestionController ===
+package com.example.product_management_api.controller;
+
+import com.example.product_management_api.entity.ProductSuggestion;
+import com.example.product_management_api.service.ProductSuggestionService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/suggestions")
+public class ProductSuggestionController {
+
+    @Autowired
+    private ProductSuggestionService service;
+
+    @PostMapping
+    public ProductSuggestion suggestProduct(@RequestBody ProductSuggestion suggestion) {
+        return service.suggestProduct(suggestion);
+    }
+
+    @GetMapping
+    public List<ProductSuggestion> getAllSuggestions() {
+        return service.getAllSuggestions();
+    }
+}
